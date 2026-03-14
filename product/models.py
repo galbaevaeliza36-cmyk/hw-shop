@@ -1,5 +1,18 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+import random
+from django.contrib.auth.models import User
+
+
+
+class ConfirmationCode(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    code = models.CharField(max_length=6)
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = str(random.randint(100000, 999999))
+        super().save(*args, **kwargs)
 
 class Category(models.Model):
     name = models.CharField(max_length=255)
