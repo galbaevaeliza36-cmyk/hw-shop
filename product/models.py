@@ -1,12 +1,12 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 import random
-from django.contrib.auth.models import User
+from django.conf import settings
 
 
 
 class ConfirmationCode(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     code = models.CharField(max_length=6)
 
     def save(self, *args, **kwargs):
