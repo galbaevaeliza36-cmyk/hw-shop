@@ -1,48 +1,36 @@
 from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
-import random
-from django.conf import settings
+from django.contrib.auth.models import User
+from users.models import CustomUser
+from common.models import BaseModel
+# Create your models here.
 
-
-
-class ConfirmationCode(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    code = models.CharField(max_length=6)
-
-    def save(self, *args, **kwargs):
-        if not self.code:
-            self.code = str(random.randint(100000, 999999))
-        super().save(*args, **kwargs)
-
-class Category(models.Model):
+class Category(BaseModel):
     name = models.CharField(max_length=255)
-
     def __str__(self):
         return self.name
 
-
-
-class Product(models.Model):
+class Product(BaseModel):
     title = models.CharField(max_length=255)
-    description = models.TextField(null=True, blank=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.TextField(null=True, blank=True, default='-')
+    price = models.IntegerField(default=1)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True)
+    owner = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
 
     def __str__(self):
         return self.title
 
+STARS = ((i, '* ' * i) for i in range(1, 6))
+class Review(BaseModel):
+    stars = models.IntegerField(choices=STARS, default=2)
+    text = models.TextField(null=True, blank=True, default='-')
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, related_name='review_set')
+    def __str__(self):
+        return self.text
 
-
-class Review(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
-    text = models.TextField()
-
-    
-    stars = models.IntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(5)]
-    )
-
+class UserConfirmation(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='confirmation')
+    code = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Review for {self.product.title}"
+        return f"{self.user.email} - {self.code}"

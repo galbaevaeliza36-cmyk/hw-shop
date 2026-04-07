@@ -1,118 +1,99 @@
+from users.models import CustomUser
 from rest_framework import serializers
 from .models import Category, Product, Review
 from django.contrib.auth.models import User
-from rest_framework import serializers
-from .models import ConfirmationCode
-from django.contrib.auth import authenticate
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+class OauthCodeSerializer(serializers.Serializer):
+    code = serializers.CharField()
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token["email"] = user.email
+        token["birthdate"] = user.birthdate.isoformat() if user.birthdate else None
+        return token
 
 
-class ReviewSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Review
-        fields = '__all__'
-
-    def validate_rating(self, value):
-        if value < 1 or value > 5:
-            raise serializers.ValidationError("Rating must be between 1 and 5")
-        return value
-
-    def validate(self, data):
-        if len(data.get("text", "")) < 5:
-            raise serializers.ValidationError("Review text must contain at least 5 characters")
-        return data
-
-
-class ProductSerializer(serializers.ModelSerializer):
-
-    reviews = ReviewSerializer(many=True, read_only=True)
-    rating = serializers.FloatField(read_only=True)
-
-    class Meta:
-        model = Product
-        fields = '__all__'
-
-    def validate_price(self, value):
-        if value <= 0:
-            raise serializers.ValidationError("Price must be greater than 0")
-        return value
-
-    def validate(self, data):
-        if len(data.get("title", "")) < 3:
-            raise serializers.ValidationError("Product title must contain at least 3 characters")
-        return data
-
-
-class CategorySerializer(serializers.ModelSerializer):
-
+class CategoryListSerializer(serializers.ModelSerializer):
     products_count = serializers.IntegerField(read_only=True)
+    class Meta:
+        model = Category
+        fields = 'name products_count'.split()
 
+class CategoryDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = '__all__'
 
-    def validate_name(self, value):
-        if len(value) < 3:
-            raise serializers.ValidationError("Category name must contain at least 3 characters")
-        return value
-    
 
+class ProductListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = 'title price'.split()
 
+class ProductDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = '__all__'
 
-class RegisterSerializer(serializers.ModelSerializer):
+class ReviewListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = 'text'.split()
+
+class ReviewDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = '__all__'
+
+class ProductWithReviewsSerializer(serializers.ModelSerializer):
+    reviews = ReviewListSerializer(source="review_set", many=True, read_only=True)
+    rating = serializers.FloatField(read_only=True)
 
     class Meta:
-        model = User
-        fields = ["username", "email", "password"]
-        extra_kwargs = {"password": {"write_only": True}}
+        model = Product
+class ProductValidateSerializer(serializers.Serializer):
+    title = serializers.CharField(required=True, min_length=1, max_length=255)
+    description = serializers.CharField(required=False, default='No text')
+    price = serializers.IntegerField()
+    category_name = serializers.CharField(write_only=True)
 
     def create(self, validated_data):
-        user = User.objects.create_user(**validated_data)
-        user.is_active = False
-        user.save()
+        validated_data.pop('category_name', None)
+        return Product.objects.create(**validated_data)
 
-        ConfirmationCode.objects.create(user=user)
+class CategoryValidateSerializer(serializers.Serializer):
+    name = serializers.CharField()
 
-        return user
+    def create(self, validated_data):
+        return Category.objects.create(**validated_data)
+
+class ReviewValidateSerializer(serializers.Serializer):
+    stars = serializers.IntegerField()
+    text = serializers.CharField(required=False)
+    product_name = serializers.CharField(write_only=True)
+    def create(self, validated_data):
+        validated_data.pop('product_name', None)
+        return Review.objects.create(**validated_data)
+class RegisterSerializer(serializers.Serializer):
+    email = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+    password_confirm = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError("Passwords do not match")
+
+        if CustomUser.objects.filter(email=attrs['email']).exists():
+            raise serializers.ValidationError("User already exists")
+
+        return attrs
     
-
-class ConfirmSerializer(serializers.Serializer):
-
-    username = serializers.CharField()
-    code = serializers.CharField()
-
-    def validate(self, data):
-        try:
-            user = User.objects.get(username=data["username"])
-            confirmation = ConfirmationCode.objects.get(user=user)
-        except:
-            raise serializers.ValidationError("User or code not found")
-
-        if confirmation.code != data["code"]:
-            raise serializers.ValidationError("Invalid confirmation code")
-
-        user.is_active = True
-        user.save()
-        confirmation.delete()
-
-        return data
-    
-
-
-
+class ConfirmUserSerializer(serializers.Serializer):
+    email = serializers.CharField()
+    code = serializers.CharField(max_length=6)
 
 class LoginSerializer(serializers.Serializer):
-
-    username = serializers.CharField()
-    password = serializers.CharField()
-
-    def validate(self, data):
-        user = authenticate(**data)
-
-        if not user:
-            raise serializers.ValidationError("Invalid credentials")
-
-        if not user.is_active:
-            raise serializers.ValidationError("User not confirmed")
-
-        return data
+    email = serializers.CharField()
+    password = serializers.CharField(write_only=True)

@@ -16,8 +16,23 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-
+from . import swagger
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView
+)
+from users.google_oauth import GoogleLoginAPIView   
+from cbv.views import CustomTokenObtainPairView
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('product.urls')),  
+    path('api/v1/cbv/', include('cbv.urls')),
+    path('api/jwt/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/jwt/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/jwt/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    path('api/v1/users/google-login', GoogleLoginAPIView.as_view(), name='google_login')
+
 ]
+
+
+urlpatterns += swagger.urlpatterns
