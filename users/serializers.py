@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from rest_framework.exceptions import ValidationError
-from .models import ConfirmationCode, CustomUser
+from .models import  CustomUser
+from . import utils 
 
 
 class UserBaseSerializer(serializers.Serializer):
@@ -35,12 +36,64 @@ class ConfirmationSerializer(serializers.Serializer):
         except CustomUser.DoesNotExist:
             raise ValidationError('User не существует!')
 
-        try:
-            confirmation_code = ConfirmationCode.objects.get(user=user)
-        except ConfirmationCode.DoesNotExist:
-            raise ValidationError('Код подтверждения не найден!')
 
-        if confirmation_code.code != code:
-            raise ValidationError('Неверный код подтверждения!')
-
+        if not utils.veity_confirmation_code(user_id, code):
+            raise serializers.ValidationError("Неверный код подтвержденея")
+        
         return attrs
+    
+    def save(self, **kwargs):
+        user = self.validated_data["user"]
+        user.is_active = True
+        user.save()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

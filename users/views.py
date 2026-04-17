@@ -18,6 +18,7 @@ from .models import ConfirmationCode, CustomUser
 import random
 import string
 from rest_framework import permissions
+from . import utils
 
 
 class AuthorizationAPIView(CreateAPIView):
@@ -65,12 +66,11 @@ class RegistrationAPIView(CreateAPIView):
             )
 
             # Create a random 6-digit code
-            code = ''.join(random.choices(string.digits, k=6))
+            code = utils.generate_confirmation_code()
+            utils.save_code_to_cache(user.email, code)
+            print("code generated and saved to chache.")
 
-            confirmation_code = ConfirmationCode.objects.create(
-                user=user,
-                code=code
-            )
+          
 
         return Response(
             status=status.HTTP_201_CREATED,
@@ -91,7 +91,7 @@ class ConfirmUserAPIView(CreateAPIView):
         user_id = serializer.validated_data['user_id']
 
         with transaction.atomic():
-            user = CustomUser.objects.get(id=user_id)
+            user = serializer.validated_data["user"]
             user.is_active = True
             user.save()
 
